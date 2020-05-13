@@ -20,7 +20,7 @@ app.get("/", function (req, res) {
 });
 
 
-// your first API endpoint... 
+// Timestamps
 app.get("/api/timestamp/:date_string?", function (req, res) {
   const dateString = req.params.date_string;
   const unix = Date.parse(dateString || new Date())
@@ -30,7 +30,14 @@ app.get("/api/timestamp/:date_string?", function (req, res) {
   res.json(response);
 });
 
+// Request header parser
 
+app.get("/api/whoami", function (req, res) {
+  const ipaddress = req.ip;
+  const language = req.headers["accept-language"];
+  const software = req.headers["user-agent"];
+  res.json({ ipaddress, language, software });
+});
 
 // listen for requests :)
 var listener = app.listen(process.env.PORT, function () {
