@@ -11,8 +11,10 @@ var urltools = require('url');
 
 require('dotenv').config();
 require('./database/connect');
+const ObjectID = require('mongodb').ObjectID;
 
 const Url = require('./database/Url');
+const User = require('./database/User');
 
 // enable CORS (https://en.wikipedia.org/wiki/Cross-origin_resource_sharing)
 // so that your API is remotely testable by FCC 
@@ -24,7 +26,7 @@ app.use(express.static('public'));
 
 app.use(bodyParser.urlencoded({ extended: false }));
 
-const router = new express.Router();
+const router = express.Router();
 
 // http://expressjs.com/en/starter/basic-routing.html
 app.get("/", function (req, res) {
@@ -75,6 +77,46 @@ router.get("/shorturl/:hash", function (req, res) {
   });
 });
 
+router.post('/exercise/new-user', async (req, res) => {
+  const user = await User.create({ username: req.body.username });
+  res.json({ username: user.username, _id: user._id });
+});
+
+router.get('/exercise/users', async (req, res) => {
+  const users = await User.find().select('_id username');
+  res.json(users)
+});
+
+router.post('/exercise/add', async (req, res) => {
+  const { userId, description, duration, date } = req.body;
+  const exercise = { description, duration: Number(duration), date: date ? new Date(date) : new Date() }
+  const user = await User.findByIdAndUpdate(userId, { $push: { exercises: exercise} });
+  const { _id, username } = user;
+  res.json({ _id, username, ...exercise, date: exercise.date.toDateString() });
+});
+
+router.get('/exercise/log', async (req, res) => {
+  const { from, to } = req.query;
+  const filters = [];
+  if (from) filters.push({ $gte: ['$$this.date', new Date(req.query.from)] })
+  if (to) filters.push({ $lte: ['$$this.date', new Date(req.query.to)]});
+  const user = (await User.aggregate([
+    { $match: { _id: ObjectID(req.query.userId) } },
+    { $project: { exercises: { 
+      $slice: [{
+      $filter: { 
+        input: "$exercises",
+        cond: { $and: filters }
+      }}, Number(req.query.limit) || { $size: "$exercises"} ],
+  }}},
+  ]))[0];
+  console.log(user);
+  const { _id, username, exercises } = user;
+  const count = exercises.length;
+  const log = exercises.map(({ description, duration, date }) => ({ description, duration, date: date.toDateString() }));
+  res.json({ _id, username, count, log });
+});
+
 // Not found middleware
 router.use((req, res, next) => {
   return next({ status: 404, message: 'not found!' })
@@ -82,7 +124,6 @@ router.use((req, res, next) => {
 
 // Error Handling middleware
 router.use((err, req, res, next) => {
-  console.log("error handler");
   let errCode, errMessage
 
   if (err.errors) {
