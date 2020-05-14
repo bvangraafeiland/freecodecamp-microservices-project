@@ -24,6 +24,8 @@ app.use(express.static('public'));
 
 app.use(bodyParser.urlencoded({ extended: false }));
 
+const router = new express.Router();
+
 // http://expressjs.com/en/starter/basic-routing.html
 app.get("/", function (req, res) {
   res.sendFile(__dirname + '/views/index.html');
@@ -31,7 +33,7 @@ app.get("/", function (req, res) {
 
 
 // Timestamps
-app.get("/api/timestamp/:date_string?", function (req, res) {
+router.get("/timestamp/:date_string?", function (req, res) {
   const dateString = req.params.date_string;
   const unix = Date.parse(dateString || new Date())
   const date = new Date(unix || Number(dateString));
@@ -41,7 +43,7 @@ app.get("/api/timestamp/:date_string?", function (req, res) {
 });
 
 // Request header parser
-app.get("/api/whoami", function (req, res) {
+router.get("/whoami", function (req, res) {
   const ipaddress = req.ip;
   const language = req.headers["accept-language"];
   const software = req.headers["user-agent"];
@@ -49,7 +51,7 @@ app.get("/api/whoami", function (req, res) {
 });
 
 // URL shortener
-app.post("/api/shorturl/new", function (req, res) {
+router.post("/shorturl/new", function (req, res) {
   const hostname = urltools.parse(req.body.url).hostname;
   if (!hostname) res.json({ error: 'invalid URL'});
   else {
@@ -67,11 +69,38 @@ app.post("/api/shorturl/new", function (req, res) {
   }
 });
 
-app.get("/api/shorturl/:hash", function (req, res) {
+router.get("/shorturl/:hash", function (req, res) {
   Url.findOne({ hash: req.params.hash }, (err, data) => {
     res.redirect(data.url);
   });
 });
+
+// Not found middleware
+router.use((req, res, next) => {
+  return next({ status: 404, message: 'not found!' })
+})
+
+// Error Handling middleware
+router.use((err, req, res, next) => {
+  console.log("error handler");
+  let errCode, errMessage
+
+  if (err.errors) {
+    // mongoose validation error
+    errCode = 400 // bad request
+    const keys = Object.keys(err.errors)
+    // report the first validation error
+    errMessage = err.errors[keys[0]].message
+  } else {
+    // generic or custom error
+    errCode = err.status || 500
+    errMessage = err.message || 'Internal Server Error'
+  }
+  res.status(errCode).type('txt')
+    .send(errMessage)
+})
+
+app.use('/api', router);
 
 // listen for requests :)
 var listener = app.listen(process.env.PORT, function () {
