@@ -6,6 +6,7 @@ var express = require('express');
 var app = express();
 var dns = require('dns');
 var bodyParser = require('body-parser');
+var upload = require('multer')({ dest: 'uploads/'});
 var shortid = require('shortid');
 var urltools = require('url');
 
@@ -115,6 +116,11 @@ router.get('/exercise/log', async (req, res) => {
   const count = exercises.length;
   const log = exercises.map(({ description, duration, date }) => ({ description, duration, date: date.toDateString() }));
   res.json({ _id, username, count, log });
+});
+
+router.post('/fileanalyse', upload.single('upfile'), (req, res) => {
+  const { originalname: name, mimetype: type, size } = req.file;
+  res.json({ name, type, size });
 });
 
 // Not found middleware
